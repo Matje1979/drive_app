@@ -23,27 +23,19 @@ if not creds or creds.invalid:
 DRIVE = discovery.build('drive', 'v3', http=creds.authorize(Http()))
 
 
-def get_folder_data(folder_id):
-    page_token = None
-    c = []
-    count = 0
-    while True:
+def make_html_name(folder_name):
+    folder_name_striped = folder_name.strip()
+    folder_name_list = folder_name_striped.split()
+    folder_name_joined = '_'.join(folder_name_list)
+    to_file = "results/" + folder_name_joined + ".html"
+    return to_file
 
-    #parameters to the list function determine what data in the given scope will be retrieved.
-        files = DRIVE.files().list(q="'{}' in parents".format(folder_id), pageSize = 100, fields = 'nextPageToken, files(name, webViewLink, id)',
-            pageToken = page_token).execute()
-
-       
-        for file in files.get('files', []):
-            #print (file.get('name'), file.get('id'), file.get('webViewLink'))
-            count += 1
-            c.append(file)
-
-        page_token = files.get('nextPageToken', None)
-        if page_token is None:
-            break
-    return c
-#print (len(c))
+def make_html_link_name(folder_name):
+    folder_name_striped = folder_name.strip()
+    folder_name_list = folder_name_striped.split()
+    folder_name_joined = '_'.join(folder_name_list)
+    to_file = folder_name_joined + ".html"
+    return to_file
 
 def elim_ext(c):
     #eliminating the file extension with regular expressions 
@@ -55,6 +47,7 @@ def elim_ext(c):
             a = f['name'].replace(match.group(), b) # creating a new string
             f['name'] = a # replacing the value of the key with the new string.
     return c
+
 
 def sort_f(c):
     #sorting the files' metadata according to the alpahbetic order of the file names.
@@ -75,9 +68,12 @@ def sort_f(c):
         for f in c:
             if item == f['name'].upper():
                 e.append(f)
+                i = c.index(f)
+                del c[i]
                 count +=1
                 break  #stops loop after first match is found (necessary because there repeated items)
     return e
+
 
 def write_to_file(e, to_file, folder_name):
     # writting data to a .txt file. If there iscurrently no file it creates a new one.
@@ -88,46 +84,80 @@ def write_to_file(e, to_file, folder_name):
         # = f.tell()
         #print (current_position)
         #f.seek(current_position) 
-        page_title = "<h1>Sadržaj drive-a/folder: {}</h1><hr><br>\n<div>".format(folder_name)
-        page_title = page_title.encode('utf-8')
-        f.write(page_title)
+        #page_title = "<h1>Sadržaj drive-a/folder: {}</h1><hr><br>\n<div>".format(folder_name)
+        #page_title = page_title.encode('utf-8')
+        #f.write(page_title)
         for item in e:
-            content = "<a href="
-            thing1 = item['webViewLink']
-            thing2 = '">'
-            thing3 = item['name']
-            thing4 = "</a><br>"
-            my_str = "\n"
-            line = content + thing1 + thing2 + thing3 + thing4 + my_str
-            line = line.encode('utf-8')
-            f.write(line)
-            count += 1
+            if type(item) == dict:
+                content = "<a href='"
+                thing1 = item['webViewLink']
+                thing2 = "'>"
+                thing3 = item['name']
+                thing4 = "</a><br>"
+                my_str = "\n"
+                line = content + thing1 + thing2 + thing3 + thing4 + my_str
+                line = line.encode('utf-8')
+                f.write(line)
+                count += 1
+            else:
+                my_str = "\n"
+                line = item + my_str
+                print (line)
+                line = line.encode('utf-8')
+                f.write(line)
+                count += 1
     print ("File count:", count)
     print ("Your files have been successfully listed!")
 
-folder_name = input("Enter folder name:")
+   
+def get_folder_data(folder_id, folder_name):
+    page_token = None
+    c = []
+    d = []
+    count = 0
+    check = 0
+    while True:
+    #parameters to the list function determine what data in the given scope will be retrieved.
+        files = DRIVE.files().list(q="'{}' in parents".format(folder_id), pageSize = 100, fields = 'nextPageToken, files(name, webViewLink, id, mimeType)',
+            pageToken = page_token).execute()
 
-folder_name_striped = folder_name.strip()
-folder_name_list = folder_name_striped.split()
-folder_name_joined = '_'.join(folder_name_list)
-to_file = folder_name_joined + ".html"
+        for file in files.get('files', []):
+            #print (file.get('name'), file.get('id'), file.get('webViewLink'))
+            if file['mimeType'] == 'application/vnd.google-apps.folder':
+                #print (file['mimeType'])
+                #print (file['id'])
+
+                file['webViewLink'] = make_html_link_name(file['name'])
+                d.append(file)
+                get_folder_data(file['id'], file['name'])
+                check += 1
+
+            else:
+                c.append(file)
+                count += 1
+
+        page_token = files.get('nextPageToken', None)
+        if page_token is None:
+            break
+    c = elim_ext(c)
+    e = sort_f(c)
+    d = elim_ext(d)
+    d = sort_f(d)
+    l = ["<br>"]
+    h = d + l + e
+    to_file = make_html_name(folder_name)
+    write_to_file(h, to_file, folder_name )
+
+#print (len(c))
+
+folder_name = input("Enter folder name:")
 
 time.sleep(1)
 
 folder_id = input("Enter the folder id:")
 
-time.sleep(1)
+get_folder_data(folder_id, folder_name)
 
-#to_file = input("What is your output file?")
-
-folder_content = get_folder_data(folder_id)
-
-extensionless_content = elim_ext(folder_content)
-
-content_sorted = sort_f(extensionless_content)
-
-
-write_to_file(content_sorted, to_file, folder_name)
 
 
 
